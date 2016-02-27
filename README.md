@@ -1,2 +1,3 @@
 # ircz
-Internet relay chat server demo using scalaz-streams
+
+Internet relay  server demo using scalaz-stream
