@@ -28,29 +28,36 @@ object Server {
 
   type Listener = Sink[Task,ByteVector]
 
+  // The mutable server state:
+  // Contains the set of sinks to send messages to.
   val clients = async.signalOf[Set[Listener]](Set.empty)(S)
 
+  // Add a client to the signal
   def addClient(c: Listener) =
     clients.compareAndSet { cs =>
       Some(cs.toSet.flatten + c)
     }
 
+  // Remove a client from the signal
   def removeClient(c: Listener) =
     clients.compareAndSet { cs =>
       Some(cs.toSet.flatten - c)
     }
 
-  // A connection emits an exchange and shuts down.
-  // We flatMap (or mergeN) over this to make it do something before it shuts down.
+  // A connection emits an exchange and then shuts down.
+  // We flatMap (or mergeN) this to make it do something before it shuts down.
   type Connection = Process[Task, Exchange[ByteVector, ByteVector]]
 
+  // The netty server as a stream of incoming connections
   def connections: Process[Task, Connection] = Netty server address
 
-  val messageQueue = async.boundedQueue[ByteVector](4096)(S)
+  // The queue of messages from clients
+  val messageQueue = async.boundedQueue[ByteVector](8192)(S)
 
-  // The process that serves client connections.
+  // The process that serves clients.
   // Establishes client connections, registers them as listeners,
-  // and relays all their messages.
+  // and enqueues all their messages on the relay,
+  // stripping any client errors.
   def serve = merge.mergeN(connections map { client =>
     for {
       Exchange(src, snk) <- client
@@ -60,6 +67,9 @@ object Server {
   })(S)
 
   // The process that relays messages to clients.
+  // For each message on the queue, get all clients.
+  // For each client, send the message to the client.
+  // If that fails, remove the client.
   def relay = for {
     message <- messageQueue.dequeue
     cs <- eval(clients.get)
