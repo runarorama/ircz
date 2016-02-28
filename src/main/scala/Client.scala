@@ -21,7 +21,7 @@ object Client {
     out = io.stdInLines.map(msg => s"$nick: $msg") pipe text.utf8Encode to snk
 
     // The main process nondeterministically merges the in and out processes
-    _ <- in merge out
+    _ <- (in wye out)(wye.mergeHaltBoth)
   } yield ()
 
   val mainTask = mainProcess.run

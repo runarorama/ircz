@@ -70,7 +70,7 @@ object Server {
   } yield ()
 
   // The main server process
-  val mainProcess = serve merge relay
+  val mainProcess = (serve wye relay)(wye.mergeHaltBoth)
 
   val mainTask = mainProcess.run
 
