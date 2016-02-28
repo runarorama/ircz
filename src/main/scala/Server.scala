@@ -8,7 +8,12 @@ import scalaz.stream.async.mutable.Signal
 import scalaz.stream.Process._
 
 object Server {
+  val maxThreads = 16
+
   def address = new InetSocketAddress("localhost", 9090)
+
+  val pool = Executors.newFixedThreadPool(maxThreads)
+  implicit val S = Strategy.Executor(pool)
 
   type Listener = Sink[Task,ByteVector]
 
@@ -42,7 +47,7 @@ object Server {
   // Establishes client connections, registers them as listeners,
   // and enqueues all their messages on the relay,
   // stripping any client errors.
-  def serve = merge.mergeN(16)(connections map { client =>
+  def serve = merge.mergeN(maxThreads)(connections map { client =>
     for {
       c <- client
       Exchange(src, snk) = c
