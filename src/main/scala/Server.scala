@@ -7,10 +7,6 @@ import scalaz.stream._
 import scalaz.stream.async.mutable.Signal
 import scalaz.stream.Process._
 
-object IO {
-  def apply[A](a: => A) = Process.eval(Task.delay(a))
-}
-
 object Server {
   def address = new InetSocketAddress("localhost", 9090)
 
@@ -23,14 +19,11 @@ object Server {
     }
   }
 
-  val pool = Executors.newCachedThreadPool(daemonThreads("chat-server"))
-  val S = Strategy.Executor(pool)
-
   type Listener = Sink[Task,ByteVector]
 
   // The mutable server state:
   // Contains the set of sinks to send messages to.
-  val clients = async.signalOf[Set[Listener]](Set.empty)(S)
+  val clients = async.signalOf[Set[Listener]](Set.empty)
 
   // Add a client to the signal
   def addClient(c: Listener) =
@@ -52,19 +45,20 @@ object Server {
   def connections: Process[Task, Connection] = Netty server address
 
   // The queue of messages from clients
-  val messageQueue = async.boundedQueue[ByteVector](8192)(S)
+  val messageQueue = async.boundedQueue[ByteVector](8192)
 
   // The process that serves clients.
   // Establishes client connections, registers them as listeners,
   // and enqueues all their messages on the relay,
   // stripping any client errors.
-  def serve = merge.mergeN(connections map { client =>
+  def serve = merge.mergeN(16)(connections map { client =>
     for {
-      Exchange(src, snk) <- client
+      c <- client
+      Exchange(src, snk) = c
       _ <- eval(addClient(snk))
       _ <- src.attempt().stripW to messageQueue.enqueue
     } yield ()
-  })(S)
+  })
 
   // The process that relays messages to clients.
   // For each message on the queue, get all clients.

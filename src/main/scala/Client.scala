@@ -10,7 +10,8 @@ object Client {
     nick <- io.stdInLines.take(1)
 
     // Connect to the server
-    Exchange(src, snk) <- Netty connect Server.address
+    c <- Netty connect Server.address
+    Exchange(src, snk) = c
     _ <- emit(s"** Connected as $nick **") to io.stdOutLines
 
     // Reads UTF8 bytes from the connection, decodes them, and sends to stdout
