@@ -10,15 +10,6 @@ import scalaz.stream.Process._
 object Server {
   def address = new InetSocketAddress("localhost", 9090)
 
-  def daemonThreads(name: String) = new ThreadFactory {
-    def newThread(r: Runnable) = {
-      val t = Executors.defaultThreadFactory.newThread(r)
-      t.setDaemon(true)
-      t.setName(name)
-      t
-    }
-  }
-
   type Listener = Sink[Task,ByteVector]
 
   // The mutable server state:
