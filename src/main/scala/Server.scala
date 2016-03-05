@@ -38,7 +38,7 @@ object Server {
   type Connection = Process[Task, Exchange[ByteVector, ByteVector]]
 
   // The netty server as a stream of incoming connections
-  def connections: Process[Task, Connection] = Netty server address
+  val connections: Process[Task, Connection] = Netty server address
 
   // The queue of messages from clients
   val messageQueue = async.boundedQueue[ByteVector](8192)
@@ -47,7 +47,7 @@ object Server {
   // Establishes client connections, registers them as listeners,
   // and enqueues all their messages on the relay,
   // stripping any client errors.
-  def serve = merge.mergeN(maxThreads)(connections map { client =>
+  val serve = merge.mergeN(maxThreads)(connections map { client =>
     for {
       c <- client
       Exchange(src, snk) = c
@@ -60,7 +60,7 @@ object Server {
   // For each message on the queue, get all clients.
   // For each client, send the message to the client.
   // If that fails, remove the client.
-  def relay = for {
+  val relay = for {
     message <- messageQueue.dequeue
     cs <- eval(clients.get)
     client <- emitAll(cs.toSeq)
